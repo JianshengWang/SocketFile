@@ -11,7 +11,9 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import com.google.gson.Gson
+import com.jasonwang.socketfile.MyApp
 import com.jasonwang.socketfile.R
 import com.jasonwang.socketfile.beans.Transmission
 import com.jasonwang.socketfile.utils.FileUtils
@@ -37,6 +39,8 @@ class ClientActivity : AppCompatActivity(), View.OnClickListener {
 
     lateinit var client: Client
 
+    var isLoading = false
+
     //json解析
     val gson = Gson()
 
@@ -49,6 +53,11 @@ class ClientActivity : AppCompatActivity(), View.OnClickListener {
 
         init()
 
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        client.close()
     }
 
     //初始化ui控件
@@ -89,13 +98,21 @@ class ClientActivity : AppCompatActivity(), View.OnClickListener {
             //断开
             R.id.client_disconnect_button -> {
                 client.close()
+                connectButton.isEnabled = true
+                disconnectButton.isEnabled = false
+                sendButton.isEnabled = false
+                chooseFileButton.isEnabled = false
             }
             //发送文字
             R.id.client_send_button -> {
-                executors.execute {
-                    val transmission = Transmission(sendEdit.text.toString(), 0)
-                    val jsonObject = gson.toJson(transmission)
-                    client.send(jsonObject)
+                if (sendEdit.text.isEmpty()) {
+                    Toast.makeText(MyApp.context, "请输入文字", Toast.LENGTH_SHORT).show()
+                } else {
+                    executors.execute {
+                        val transmission = Transmission(sendEdit.text.toString(), 0, sendEdit.text.length)
+                        val jsonObject = gson.toJson(transmission)
+                        client.send(jsonObject)
+                    }
                 }
             }
             //发送图片
@@ -137,6 +154,7 @@ class ClientActivity : AppCompatActivity(), View.OnClickListener {
         var receiveMessage = ""
         var receiveLength = 0
         var message = ""
+        var firstLinkFlag = true
 
         override fun run() {
 
@@ -151,6 +169,20 @@ class ClientActivity : AppCompatActivity(), View.OnClickListener {
             }
 
             while (isRun) {
+
+                if (!isLoading && !firstLinkFlag) {
+                    runOnUiThread {
+                        Toast.makeText(MyApp.context, "开始传输", Toast.LENGTH_SHORT).show()
+                        connectButton.isEnabled = false
+                        disconnectButton.isEnabled = false
+                        sendButton.isEnabled = false
+                        chooseFileButton.isEnabled = false
+                        isLoading = true
+                    }
+                }
+
+                firstLinkFlag = false
+
                 try {
                     if (dataInputStream.read(buffer).also { receiveLength = it } !== -1) {
                         receiveMessage = String(buffer, 0, receiveLength, Charsets.UTF_8)
@@ -177,6 +209,13 @@ class ClientActivity : AppCompatActivity(), View.OnClickListener {
                                 addBitmapToAlbum(bitmap, name, mimeType, compressFormat)
                             }
                         }
+                        runOnUiThread {
+                            Toast.makeText(MyApp.context, "传输结束", Toast.LENGTH_SHORT).show()
+                            disconnectButton.isEnabled = true
+                            sendButton.isEnabled = true
+                            chooseFileButton.isEnabled = true
+                            isLoading = false
+                        }
                         message = ""
                     }
                 } catch (e: Exception) {
@@ -199,8 +238,20 @@ class ClientActivity : AppCompatActivity(), View.OnClickListener {
 
         //发送信息
         fun send(message: String) {
+            runOnUiThread {
+                Toast.makeText(MyApp.context, "开始传输", Toast.LENGTH_SHORT).show()
+                disconnectButton.isEnabled = false
+                sendButton.isEnabled = false
+                chooseFileButton.isEnabled = false
+            }
             printWriter.println(message)
             printWriter.flush()
+            runOnUiThread {
+                Toast.makeText(MyApp.context, "传输结束", Toast.LENGTH_SHORT).show()
+                disconnectButton.isEnabled = true
+                sendButton.isEnabled = true
+                chooseFileButton.isEnabled = true
+            }
         }
 
     }

@@ -15,8 +15,10 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.gson.Gson
+import com.jasonwang.socketfile.MyApp
 import com.jasonwang.socketfile.R
 import com.jasonwang.socketfile.beans.Transmission
 import com.jasonwang.socketfile.utils.FileUtils
@@ -41,6 +43,10 @@ class ServerActivity : AppCompatActivity(), View.OnClickListener {
     lateinit var sendButton: Button
     lateinit var chooseFileButton: Button
 
+    var isConnect = false
+
+    var isLoading = false
+
     //线程池
     val executors = Executors.newCachedThreadPool()
 
@@ -55,6 +61,11 @@ class ServerActivity : AppCompatActivity(), View.OnClickListener {
         init()
 
         ipText.text = getLocalIP()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        server.close()
     }
 
     //初始化ui控件
@@ -100,12 +111,20 @@ class ServerActivity : AppCompatActivity(), View.OnClickListener {
             }
             R.id.server_disconnect_button -> {
                 server.close()
+                connectButton.isEnabled = true
+                disconnectButton.isEnabled = false
+                sendButton.isEnabled = false
+                chooseFileButton.isEnabled = false
             }
             R.id.server_send_button -> {
-                executors.execute {
-                    val transmission = Transmission(sendEdit.text.toString(), 0)
-                    val jsonObject = gson.toJson(transmission)
-                    server.serverSocketThreads[0].send(jsonObject)
+                if (sendEdit.text.isEmpty()) {
+                    Toast.makeText(MyApp.context, "请输入文字", Toast.LENGTH_SHORT).show()
+                } else {
+                    executors.execute {
+                        val transmission = Transmission(sendEdit.text.toString(), 0, sendEdit.text.length)
+                        val jsonObject = gson.toJson(transmission)
+                        server.serverSocketThreads[0].send(jsonObject)
+                    }
                 }
             }
             R.id.server_choose_file_button -> {
@@ -163,6 +182,7 @@ class ServerActivity : AppCompatActivity(), View.OnClickListener {
                 thread.isRun = false
             }
             serverSocketThreads.clear()
+            isConnect = false
         }
 
         //获取socket对象
@@ -179,10 +199,12 @@ class ServerActivity : AppCompatActivity(), View.OnClickListener {
             lateinit var inputStream: InputStream
             var ip = ""
             var isRun = true
+            var firstLinkFlag = true
 
             init {
                 ip = socket.inetAddress.toString()
                 Log.e("新客户端连接server", ip)
+                isConnect = true
                 try {
                     socket.soTimeout = 0
                     val outputStream = socket.getOutputStream()
@@ -194,8 +216,21 @@ class ServerActivity : AppCompatActivity(), View.OnClickListener {
             }
 
             fun send(message: String) {
+                runOnUiThread {
+                    Toast.makeText(MyApp.context, "开始传输", Toast.LENGTH_SHORT).show()
+                    connectButton.isEnabled = false
+                    disconnectButton.isEnabled = false
+                    sendButton.isEnabled = false
+                    chooseFileButton.isEnabled = false
+                }
                 printWriter.println(message)
                 printWriter.flush()
+                runOnUiThread {
+                    Toast.makeText(MyApp.context, "传输结束", Toast.LENGTH_SHORT).show()
+                    disconnectButton.isEnabled = true
+                    sendButton.isEnabled = true
+                    chooseFileButton.isEnabled = true
+                }
             }
 
             override fun run() {
@@ -205,6 +240,19 @@ class ServerActivity : AppCompatActivity(), View.OnClickListener {
                 serverSocketThreads.add(this)
                 var message = ""
                 while (isRun && !socket.isClosed && !socket.isInputShutdown) {
+
+                    if (!isLoading && !firstLinkFlag) {
+                        runOnUiThread {
+                            Toast.makeText(MyApp.context, "开始传输", Toast.LENGTH_SHORT).show()
+                            connectButton.isEnabled = false
+                            disconnectButton.isEnabled = false
+                            sendButton.isEnabled = false
+                            chooseFileButton.isEnabled = false
+                            isLoading = true
+                        }
+                    }
+                    firstLinkFlag = false
+
                     try {
                         if (inputStream.read(buffet).also { receiveLength = it } !== -1) {
                             receiveMessage = String(buffet, 0, receiveLength, Charsets.UTF_8)
@@ -231,6 +279,13 @@ class ServerActivity : AppCompatActivity(), View.OnClickListener {
                                 }
                             }
                             message = ""
+                            runOnUiThread {
+                                Toast.makeText(MyApp.context, "传输结束", Toast.LENGTH_SHORT).show()
+                                disconnectButton.isEnabled = true
+                                sendButton.isEnabled = true
+                                chooseFileButton.isEnabled = true
+                                isLoading = false
+                            }
                         }
                     } catch (e: Exception) {
                     }
@@ -238,6 +293,7 @@ class ServerActivity : AppCompatActivity(), View.OnClickListener {
                 try {
                     socket.close()
                     printWriter.close()
+                    isConnect = false
                 } catch (e: Exception) {
 
                 }

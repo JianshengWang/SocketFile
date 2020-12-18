@@ -20,7 +20,7 @@ object FileUtils {
         val bytes = outputStream.toByteArray()
         val string = Base64.encodeToString(bytes, Base64.DEFAULT)
 
-        val transmission = Transmission(string, 1)
+        val transmission = Transmission(string, 1, string.length)
         outputStream.close()
 
         return gson.toJson(transmission)

@@ -150,7 +150,7 @@ class ClientActivity : AppCompatActivity(), View.OnClickListener {
 
         //是否运行标记位
         var isRun = true
-        var buffer = ByteArray(32768)
+        var buffer = ByteArray(262144)
         var receiveMessage = ""
         var receiveLength = 0
         var message = ""

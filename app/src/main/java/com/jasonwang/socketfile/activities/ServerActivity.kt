@@ -234,7 +234,7 @@ class ServerActivity : AppCompatActivity(), View.OnClickListener {
             }
 
             override fun run() {
-                val buffet = ByteArray(32768)
+                val buffet = ByteArray(262144)
                 var receiveMessage = ""
                 var receiveLength: Int
                 serverSocketThreads.add(this)
